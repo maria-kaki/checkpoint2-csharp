@@ -39,11 +39,19 @@ sources/
 └── ExpenseHub.UnitTests/
 ```
 
-A solução começa sem Identity, banco, domínio ou testes funcionais. Toda implementação avaliada deve ser criada por você.
+```text
+sources/ExpenseHub.Api/
+├── Data/
+│   ├── AppDbContext.cs        # contexto EF Core + Identity
+│   ├── Configurations/        # mapeamentos das entidades
+│   └── Migrations/            # migrations geradas pelo dotnet-ef
+└── Domain/                    # Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
+```
 
 ## Comandos
 
 ```shell
+dotnet tool restore
 dotnet restore ./sources/ExpenseHub.slnx
 dotnet build ./sources/ExpenseHub.slnx
 dotnet test ./sources/ExpenseHub.slnx
@@ -64,16 +72,34 @@ O endpoint inicial `GET /health` existe apenas para confirmar que a aplicação 
 
 ## Banco de dados
 
-Você pode utilizar Microsoft SQL Server LocalDB, Oracle Database, SQLite ou outro provider relacional compatível com Entity Framework Core.
+O projeto usa **SQLite** com Entity Framework Core 10.
 
-A escolha não gera pontos. Documente no README do seu repositório:
+| Item | Valor |
+|---|---|
+| Provider | SQLite |
+| Pacote | `Microsoft.EntityFrameworkCore.Sqlite` 10.0.12 |
+| Connection string | `ConnectionStrings:ExpenseHub` em `appsettings.json` (`Data Source=expensehub.db`) |
+| Arquivo gerado | `sources/ExpenseHub.Api/expensehub.db` (ignorado pelo Git) |
+| Migrations | `sources/ExpenseHub.Api/Data/Migrations` |
 
-- provider e pacote utilizado;
-- configuração necessária;
-- criação ou atualização do banco;
-- como iniciar a aplicação.
+Não é necessário instalar servidor de banco. Ao iniciar, a API aplica automaticamente as migrations pendentes e cria o arquivo `expensehub.db` caso ele não exista.
 
-Não versione senhas, tokens ou connection strings sensíveis.
+Para criar ou atualizar o banco manualmente, use a ferramenta local `dotnet-ef` (registrada em `dotnet-tools.json`):
+
+```shell
+dotnet tool restore
+dotnet ef database update --project ./sources/ExpenseHub.Api
+```
+
+Para criar uma nova migration após alterar o modelo:
+
+```shell
+dotnet ef migrations add NomeDaMigration --project ./sources/ExpenseHub.Api --output-dir Data/Migrations
+```
+
+Para recriar o banco do zero, pare a aplicação e apague `sources/ExpenseHub.Api/expensehub.db`.
+
+O banco inicia com as categorias de despesa: Alimentação, Transporte, Hospedagem, Material de escritório e Outros.
 
 ## Testes
 
