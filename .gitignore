@@ -13,6 +13,11 @@ _ReSharper*/
 ### CUSTOM - Ignore Migrations ####
 sources/MyPDV/Migrations/
 
+# Banco SQLite local (gerado na execução)
+*.db
+*.db-shm
+*.db-wal
+
 # Build artifacts
 [Dd]ebug/
 [Rr]elease/
