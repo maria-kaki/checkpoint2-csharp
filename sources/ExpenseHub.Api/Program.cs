@@ -31,6 +31,7 @@ internal static class Program
 
         AddIdentityAndAuthentication(builder);
         builder.Services.AddScoped<AccountService>();
+        builder.Services.AddScoped<UserAdministrationService>();
 
         WebApplication app = builder.Build();
 
