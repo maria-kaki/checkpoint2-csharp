@@ -1,9 +1,47 @@
 @ExpenseHub_Api_HostAddress = http://localhost:5245
 
+# Senha configurada via User Secrets (Seed:Admin:Password). Não versione a senha real.
+@adminPassword = <sua-senha-forte>
+
 GET {{ExpenseHub_Api_HostAddress}}/health
 Accept: application/json
 
 ###
 
-# Os endpoints do checkpoint estão definidos em docs/REQUISITOS.md.
-# Implemente e adicione aqui as requisições usadas para validar cada issue.
+# ---------------------------------------------------------------
+# I02 — Identity, Admin e autenticação
+# ---------------------------------------------------------------
+
+# Login válido do Admin: 200 com bearer token
+# @name adminLogin
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "admin@expensehub.local",
+  "password": "{{adminPassword}}"
+}
+
+###
+
+# Senha errada: 401 sem token
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "admin@expensehub.local",
+  "password": "errada"
+}
+
+###
+
+# Entrada inválida: 400
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "nao-e-email",
+  "password": ""
+}
+
+###
