@@ -45,3 +45,106 @@ Content-Type: application/json
 }
 
 ###
+
+# ---------------------------------------------------------------
+# I03 — Cadastro HTTP e gerenciamento de roles
+# ---------------------------------------------------------------
+
+# Cadastro válido: 201 com roles vazias
+# @name registerAna
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "ana@empresa.com",
+  "password": "Ana@12345"
+}
+
+###
+
+# Cadastro tentando enviar roles: 400 (o cadastro não aceita roles)
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "intruso@empresa.com",
+  "password": "Intr@1234",
+  "roles": ["Admin"]
+}
+
+###
+
+# Login da Ana (ainda sem roles)
+# @name anaLogin
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "ana@empresa.com",
+  "password": "Ana@12345"
+}
+
+###
+
+# Sem token: 401
+GET {{ExpenseHub_Api_HostAddress}}/api/admin/users
+
+###
+
+# Usuário autenticado sem role Admin: 403
+GET {{ExpenseHub_Api_HostAddress}}/api/admin/users
+Authorization: Bearer {{anaLogin.response.body.$.accessToken}}
+
+###
+
+# Admin lista usuários e roles: 200
+# @name users
+GET {{ExpenseHub_Api_HostAddress}}/api/admin/users
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# Admin atribui Employee e Approver à Ana: 200
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerAna.response.body.$.id}}/roles
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Employee", "Approver"]
+}
+
+###
+
+# Role desconhecida: 400
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerAna.response.body.$.id}}/roles
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["SuperUser"]
+}
+
+###
+
+# Usuário inexistente: 404
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/nao-existe/roles
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Employee"]
+}
+
+###
+
+# Admin tentando remover a própria role Admin: 403
+# (substitua pelo id do Admin retornado em GET /api/admin/users)
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/<id-do-admin>/roles
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Employee"]
+}
+
+###
