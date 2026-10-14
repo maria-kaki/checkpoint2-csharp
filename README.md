@@ -41,11 +41,15 @@ sources/
 
 ```text
 sources/ExpenseHub.Api/
+├── Controllers/               # endpoints HTTP
 ├── Data/
 │   ├── AppDbContext.cs        # contexto EF Core + Identity
+│   ├── IdentitySeeder.cs      # roles obrigatórias e conta Admin inicial
 │   ├── Configurations/        # mapeamentos das entidades
 │   └── Migrations/            # migrations geradas pelo dotnet-ef
-└── Domain/                    # Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
+├── Domain/                    # Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
+├── Dtos/                      # contratos de entrada com validação declarativa
+└── Security/                  # roles e configuração do seed
 ```
 
 ## Comandos
@@ -55,10 +59,14 @@ dotnet tool restore
 dotnet restore ./sources/ExpenseHub.slnx
 dotnet build ./sources/ExpenseHub.slnx
 dotnet test ./sources/ExpenseHub.slnx
+
+# uma única vez: senha da conta Admin inicial (veja "Autenticação e conta Admin")
+dotnet user-secrets set "Seed:Admin:Password" "<sua-senha-forte>" --project ./sources/ExpenseHub.Api
+
 dotnet run --project ./sources/ExpenseHub.Api/ExpenseHub.Api.csproj
 ```
 
-O endpoint inicial `GET /health` existe apenas para confirmar que a aplicação inicia.
+A API sobe em `http://localhost:5245`. O endpoint `GET /health` é público e confirma que a aplicação iniciou. O arquivo [ExpenseHub.Api.http](sources/ExpenseHub.Api/ExpenseHub.Api.http) contém as requisições usadas para validar cada issue.
 
 ## Documentação
 
@@ -100,6 +108,62 @@ dotnet ef migrations add NomeDaMigration --project ./sources/ExpenseHub.Api --ou
 Para recriar o banco do zero, pare a aplicação e apague `sources/ExpenseHub.Api/expensehub.db`.
 
 O banco inicia com as categorias de despesa: Alimentação, Transporte, Hospedagem, Material de escritório e Outros.
+
+## Autenticação e conta Admin
+
+A autenticação usa **ASP.NET Core Identity** persistido no SQLite e **bearer token** do próprio Identity (`AddBearerToken`).
+
+### Conta Admin inicial
+
+Ao iniciar, a API executa um seed idempotente que:
+
+- cria as roles `Admin`, `Employee`, `Approver`, `Finance` e `Auditor`, caso não existam;
+- cria **somente uma** conta Admin, caso ainda não exista nenhum usuário com a role `Admin`.
+
+Reexecutar a aplicação não duplica roles nem usuários. Nenhum outro usuário é criado pelo seed.
+
+| Configuração | Onde fica |
+|---|---|
+| `Seed:Admin:Email` | `appsettings.json` (padrão `admin@expensehub.local`) |
+| `Seed:Admin:Password` | **User Secrets** ou variável de ambiente; nunca no repositório |
+
+Configure a senha antes da primeira execução:
+
+```shell
+dotnet user-secrets set "Seed:Admin:Password" "<sua-senha-forte>" --project ./sources/ExpenseHub.Api
+```
+
+Ou, sem User Secrets (por exemplo fora do ambiente Development), use a variável de ambiente `Seed__Admin__Password`.
+
+A senha deve seguir a política padrão do Identity: ao menos 6 caracteres, com letra maiúscula, letra minúscula, dígito e caractere especial. Se nenhuma conta Admin existir e a senha não estiver configurada, a API não inicia e informa o que falta.
+
+### Login
+
+`POST /login` recebe e-mail e senha e devolve um bearer token válido por 1 hora:
+
+```http
+POST http://localhost:5245/login
+Content-Type: application/json
+
+{ "email": "admin@expensehub.local", "password": "<sua-senha-forte>" }
+```
+
+```json
+{ "tokenType": "Bearer", "accessToken": "...", "expiresIn": 3600, "refreshToken": "..." }
+```
+
+Envie o token nas demais rotas com o cabeçalho `Authorization: Bearer <accessToken>`. As roles do usuário são gravadas no token no momento do login.
+
+### Respostas de autenticação
+
+| Situação | Status |
+|---|---|
+| Credenciais inválidas no login | `401 Unauthorized` |
+| Rota protegida sem token ou com token inválido | `401 Unauthorized` |
+| Usuário autenticado sem a role exigida | `403 Forbidden` |
+| Entrada inválida | `400 Bad Request` |
+
+Todas as rotas exigem autenticação por padrão (política de fallback); apenas `/health` e `/login` são públicas. Após 5 tentativas de login inválidas a conta fica bloqueada por 5 minutos. As respostas de erro seguem `ProblemDetails`.
 
 ## Testes
 
