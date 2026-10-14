@@ -1,5 +1,7 @@
 using System.Threading.Tasks;
 using ExpenseHub.Api.Dtos;
+using ExpenseHub.Api.Responses;
+using ExpenseHub.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -9,21 +11,42 @@ using IdentitySignInResult = Microsoft.AspNetCore.Identity.SignInResult;
 namespace ExpenseHub.Api.Controllers;
 
 /// <summary>
-/// Endpoints públicos de autenticação.
+/// Endpoints públicos de cadastro e autenticação.
 /// </summary>
-[ApiController]
 [AllowAnonymous]
-public sealed class AuthController : ControllerBase
+public sealed class AuthController : ApiControllerBase
 {
     private readonly SignInManager<IdentityUser> _signInManager;
+    private readonly AccountService _accountService;
 
     /// <summary>
     /// Cria o controller.
     /// </summary>
     /// <param name="signInManager">Gerenciador de login do Identity.</param>
-    public AuthController(SignInManager<IdentityUser> signInManager)
+    /// <param name="accountService">Serviço de cadastro.</param>
+    public AuthController(SignInManager<IdentityUser> signInManager, AccountService accountService)
     {
         _signInManager = signInManager;
+        _accountService = accountService;
+    }
+
+    /// <summary>
+    /// Cadastra um usuário sem role. Roles são atribuídas apenas pelo Admin.
+    /// </summary>
+    /// <param name="request">E-mail e senha.</param>
+    /// <returns>201 com o usuário criado ou 400 para entrada inválida.</returns>
+    [HttpPost("/register")]
+    [ProducesResponseType<UserResponse>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    {
+        ServiceResult<UserResponse> result = await _accountService.RegisterAsync(request);
+        if (!result.Succeeded)
+        {
+            return ToProblem(result.Error!);
+        }
+
+        return StatusCode(StatusCodes.Status201Created, result.Value);
     }
 
     /// <summary>
