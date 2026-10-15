@@ -210,11 +210,62 @@ Os nomes das roles não diferenciam maiúsculas e minúsculas (`employee` vira `
 
 > **Novo login obrigatório após alterar roles.** As roles ficam gravadas no token no momento do login. Depois de uma alteração, o usuário afetado precisa chamar `POST /login` novamente para receber um token com as novas roles; o token anterior continua com as roles antigas até expirar (1 hora). A alteração também renova o security stamp do usuário.
 
+## Reembolsos
+
+### Criar e editar rascunho
+
+| Método e rota | Quem pode | Regra |
+|---|---|---|
+| `POST /api/expenses` | Employee | Cria em `Draft`; o proprietário é o usuário do token |
+| `PUT /api/expenses/{id}` | Employee proprietário | Somente enquanto o reembolso está em `Draft` |
+
+Corpo aceito (o mesmo para criar e editar):
+
+```json
+{
+  "categoryId": 2,
+  "description": "Táxi do aeroporto até o cliente",
+  "amount": 87.50,
+  "expenseDate": "2026-10-10"
+}
+```
+
+| Campo | Regra |
+|---|---|
+| `categoryId` | Obrigatório; categoria existente (1 Alimentação, 2 Transporte, 3 Hospedagem, 4 Material de escritório, 5 Outros) |
+| `description` | Obrigatória, entre 10 e 500 caracteres (sem contar espaços nas pontas) |
+| `amount` | Entre `0.01` e `2147483647` (R$ 2.147.483.647,00) |
+| `expenseDate` | Data válida (`yyyy-MM-dd`) e não futura, comparada com a data UTC do servidor |
+
+Identificador, proprietário, estado, ator e horários são definidos pelo servidor. Enviar qualquer outro campo (por exemplo `ownerId` ou `status`) retorna `400`, o que impede mass assignment.
+
+| Situação | Status |
+|---|---|
+| Criação válida | `201 Created` com o reembolso em `Draft` |
+| Edição válida | `200 OK` com o reembolso atualizado |
+| Entrada inválida ou campo extra | `400 Bad Request` |
+| Sem token | `401 Unauthorized` |
+| Usuário sem a role Employee (inclusive Admin, Approver, Finance e Auditor) | `403 Forbidden` |
+| Usuário que enxerga o reembolso, mas não é o proprietário | `403 Forbidden` |
+| Reembolso inexistente ou fora do escopo de leitura (por exemplo, de outro Employee) | `404 Not Found` |
+| Reembolso fora de `Draft` | `409 Conflict` |
+
+Toda criação e toda edição com mudanças gravam um registro em `ExpenseHistory` na mesma operação, com ator, instante UTC, estados e, na edição, os campos alterados com valores antigos e novos. Uma edição sem mudanças não gera histórico.
+
+### Onde as regras ficam
+
+- **Controller:** `[Authorize(Roles = ...)]` restringe a rota pela role.
+- **Serviço (`ExpenseService`):** combina role, visibilidade, proprietário e estado, nessa ordem, e devolve um `ServiceResult` que o controller converte em `ProblemDetails`.
+- **Visibilidade (`ExpenseVisibility`):** filtro aplicado na consulta ao banco, antes de materializar os dados. Employee vê os próprios, Approver vê `Submitted`, Finance vê `Approved` e `Paid`, Auditor vê todos e Admin sozinho não vê nada. Roles acumuladas recebem a união.
+- **Domínio (`Expense`, `ExpenseRules`):** garante o estado e as validações mesmo que o serviço seja contornado.
+
 ## Testes
 
-Somente testes unitários escritos por você entram na nota. Testes de integração, end-to-end ou de interface são permitidos, mas opcionais e sem pontuação.
+Os testes unitários ficam em `sources/ExpenseHub.UnitTests` (MSTest) e executam sem banco, rede ou serviço externo: os serviços dependem de `IExpenseRepository` e `TimeProvider`, substituídos nos testes por um repositório em memória e um relógio fixo.
 
-Os testes unitários devem executar sem banco, rede ou serviço externo.
+```shell
+dotnet test ./sources/ExpenseHub.slnx
+```
 
 ## Entrega
 

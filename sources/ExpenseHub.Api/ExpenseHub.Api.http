@@ -148,3 +148,107 @@ Content-Type: application/json
 }
 
 ###
+
+# ---------------------------------------------------------------
+# I04 — Criar e editar rascunho
+# Pré-requisito: Ana com a role Employee (PUT de roles acima) e novo login.
+# ---------------------------------------------------------------
+
+# Novo login da Ana para o token conter as roles atribuídas
+# @name anaLogin2
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "ana@empresa.com",
+  "password": "Ana@12345"
+}
+
+###
+
+# Criar rascunho: 201 em Draft, proprietário = Ana
+# @name createExpense
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 2,
+  "description": "Táxi do aeroporto até o cliente",
+  "amount": 87.50,
+  "expenseDate": "2026-10-10"
+}
+
+###
+
+# Valor, descrição e data fora do contrato: 400
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 2,
+  "description": "curta",
+  "amount": 0,
+  "expenseDate": "2099-01-01"
+}
+
+###
+
+# Tentativa de mass assignment (ownerId/status): 400
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 2,
+  "description": "Táxi do aeroporto até o cliente",
+  "amount": 87.50,
+  "expenseDate": "2026-10-10",
+  "ownerId": "outro-usuario",
+  "status": "Approved"
+}
+
+###
+
+# Admin não cria reembolso: 403
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 2,
+  "description": "Táxi do aeroporto até o cliente",
+  "amount": 87.50,
+  "expenseDate": "2026-10-10"
+}
+
+###
+
+# Editar o próprio rascunho: 200 (gera histórico com os campos alterados)
+PUT {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 3,
+  "description": "Hotel próximo ao cliente por duas noites",
+  "amount": 450.00,
+  "expenseDate": "2026-10-10"
+}
+
+###
+
+# Reembolso inexistente: 404
+PUT {{ExpenseHub_Api_HostAddress}}/api/expenses/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 3,
+  "description": "Hotel próximo ao cliente por duas noites",
+  "amount": 450.00,
+  "expenseDate": "2026-10-10"
+}
+
+###
