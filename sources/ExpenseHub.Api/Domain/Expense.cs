@@ -195,6 +195,54 @@ public class Expense
         return true;
     }
 
+    /// <summary>
+    /// Envia o rascunho para aprovação (<see cref="ExpenseStatus.Draft"/> → <see cref="ExpenseStatus.Submitted"/>).
+    /// A verificação de proprietário é feita pelo serviço.
+    /// </summary>
+    /// <param name="actorId">Usuário que envia.</param>
+    /// <param name="nowUtc">Instante atual do servidor em UTC.</param>
+    /// <returns><see langword="false"/> quando o reembolso não está em Draft; nada é alterado nem registrado.</returns>
+    public bool Submit(string actorId, DateTime nowUtc)
+    {
+        return TryTransition(ExpenseStatus.Draft, ExpenseStatus.Submitted, ExpenseAction.Submitted, actorId, nowUtc);
+    }
+
+    /// <summary>
+    /// Executa uma transição de estado e registra o histórico correspondente. Se o estado atual não for o
+    /// esperado, nada é alterado: assim uma transição repetida não duplica o histórico.
+    /// </summary>
+    /// <param name="expected">Estado exigido para a transição.</param>
+    /// <param name="next">Próximo estado.</param>
+    /// <param name="action">Ação registrada no histórico.</param>
+    /// <param name="actorId">Usuário que executa a ação.</param>
+    /// <param name="nowUtc">Instante atual do servidor em UTC.</param>
+    /// <param name="justification">Justificativa, quando a ação exigir.</param>
+    /// <returns><see langword="true"/> quando a transição foi aplicada.</returns>
+    private bool TryTransition(
+        ExpenseStatus expected,
+        ExpenseStatus next,
+        ExpenseAction action,
+        string actorId,
+        DateTime nowUtc,
+        string? justification = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
+
+        if (Status != expected)
+        {
+            return false;
+        }
+
+        ExpenseStatus previous = Status;
+        Status = next;
+        UpdatedAtUtc = nowUtc;
+        ConcurrencyStamp = Guid.NewGuid();
+
+        History.Add(ExpenseHistory.Create(Id, action, actorId, nowUtc, previous, next, justification));
+
+        return true;
+    }
+
     private static void EnsureValid(string description, decimal amount, DateOnly expenseDate, DateTime nowUtc)
     {
         IReadOnlyDictionary<string, string[]> errors = ExpenseRules.Validate(

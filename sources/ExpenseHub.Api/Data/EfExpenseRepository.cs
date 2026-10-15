@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain;
@@ -37,6 +39,15 @@ public sealed class EfExpenseRepository : IExpenseRepository
         return ExpenseVisibility.Apply(_dbContext.Expenses, user)
             .Include(expense => expense.Category)
             .FirstOrDefaultAsync(expense => expense.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Expense>> ListVisibleAsync(CurrentUser user, CancellationToken cancellationToken)
+    {
+        return await ExpenseVisibility.Apply(_dbContext.Expenses.AsNoTracking(), user)
+            .Include(expense => expense.Category)
+            .OrderByDescending(expense => expense.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
     }
 
     /// <inheritdoc />

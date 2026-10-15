@@ -24,6 +24,12 @@ public static class AppRoles
     /// <summary>Consulta todos os reembolsos e históricos, sem escrita.</summary>
     public const string Auditor = "Auditor";
 
+    /// <summary>
+    /// Roles que consultam reembolsos, no formato aceito por <c>[Authorize(Roles = ...)]</c>.
+    /// O escopo de cada uma é aplicado pelo serviço.
+    /// </summary>
+    public const string ExpenseReaders = Employee + "," + Approver + "," + Finance + "," + Auditor;
+
     /// <summary>Todas as roles que devem existir para o funcionamento da aplicação.</summary>
     public static IReadOnlyList<string> All { get; } = [Admin, Employee, Approver, Finance, Auditor];
 

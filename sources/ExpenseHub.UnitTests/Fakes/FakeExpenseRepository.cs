@@ -51,6 +51,13 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
             .FirstOrDefault(expense => expense.Id == id));
     }
 
+    public Task<IReadOnlyList<Expense>> ListVisibleAsync(CurrentUser user, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Expense> visible = [.. ExpenseVisibility.Apply(_expenses.AsQueryable(), user)
+            .OrderByDescending(expense => expense.CreatedAtUtc)];
+        return Task.FromResult(visible);
+    }
+
     public void Add(Expense expense)
     {
         _expenses.Add(expense);

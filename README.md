@@ -252,6 +252,36 @@ Identificador, proprietário, estado, ator e horários são definidos pelo servi
 
 Toda criação e toda edição com mudanças gravam um registro em `ExpenseHistory` na mesma operação, com ator, instante UTC, estados e, na edição, os campos alterados com valores antigos e novos. Uma edição sem mudanças não gera histórico.
 
+### Enviar, listar e consultar
+
+| Método e rota | Quem pode | Regra |
+|---|---|---|
+| `POST /api/expenses/{id}/submit` | Employee proprietário | `Draft` → `Submitted` |
+| `GET /api/expenses` | Employee, Approver, Finance, Auditor | Lista somente o escopo de leitura do perfil |
+| `GET /api/expenses/{id}` | Employee, Approver, Finance, Auditor | Detalhe somente dentro do escopo de leitura |
+
+Escopo de leitura por perfil (roles acumuladas recebem a união):
+
+| Perfil | Enxerga |
+|---|---|
+| Employee | Os próprios reembolsos, em qualquer estado |
+| Approver | Reembolsos `Submitted` |
+| Finance | Reembolsos `Approved` e `Paid` |
+| Auditor | Todos |
+| Admin (sem outra role) | Nada (`403`) |
+
+| Situação | Status |
+|---|---|
+| Envio válido | `200 OK` com o reembolso em `Submitted` |
+| Envio repetido ou reembolso fora de `Draft` | `409 Conflict`, sem novo registro de histórico |
+| Envio por quem enxerga o reembolso, mas não é o proprietário | `403 Forbidden` |
+| Envio por Auditor, Approver, Finance ou Admin sem a role Employee | `403 Forbidden` |
+| Reembolso inexistente ou fora do escopo de leitura | `404 Not Found` (a mesma resposta, sem revelar que o recurso existe) |
+| Listagem ou detalhe por usuário sem perfil de leitura (por exemplo, só Admin) | `403 Forbidden` |
+| Sem token | `401 Unauthorized` |
+
+O envio grava o histórico (`Submitted`, ator, instante UTC, `Draft` → `Submitted`) na mesma operação. A listagem é ordenada do mais recente para o mais antigo e o filtro de perfil é executado no banco.
+
 ### Onde as regras ficam
 
 - **Controller:** `[Authorize(Roles = ...)]` restringe a rota pela role.
