@@ -51,6 +51,11 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
             .FirstOrDefault(expense => expense.Id == id));
     }
 
+    public Task<Expense?> FindForTransitionAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(_expenses.FirstOrDefault(expense => expense.Id == id));
+    }
+
     public Task<IReadOnlyList<Expense>> ListVisibleAsync(CurrentUser user, CancellationToken cancellationToken)
     {
         IReadOnlyList<Expense> visible = [.. ExpenseVisibility.Apply(_expenses.AsQueryable(), user)

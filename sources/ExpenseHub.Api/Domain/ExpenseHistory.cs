@@ -7,6 +7,9 @@ namespace ExpenseHub.Api.Domain;
 /// </summary>
 public class ExpenseHistory
 {
+    /// <summary>Tamanho mínimo da justificativa.</summary>
+    public const int JustificationMinLength = 10;
+
     /// <summary>Tamanho máximo da justificativa.</summary>
     public const int JustificationMaxLength = 500;
 

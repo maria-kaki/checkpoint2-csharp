@@ -25,7 +25,7 @@ public static class ExpenseAccess
 
     /// <summary>Valida se o usuário pode aprovar ou reprovar o reembolso.</summary>
     /// <param name="user">Usuário autenticado.</param>
-    /// <param name="expense">Reembolso visível ao usuário.</param>
+    /// <param name="expense">Reembolso localizado para a transição.</param>
     /// <returns>Nulo quando a decisão é permitida; caso contrário, a falha correspondente.</returns>
     public static ServiceError? ValidateDecision(CurrentUser user, Expense expense)
     {
