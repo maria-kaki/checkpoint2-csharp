@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain;
@@ -27,6 +28,15 @@ public interface IExpenseRepository
     /// <param name="cancellationToken">Token de cancelamento.</param>
     /// <returns>O reembolso ou <see langword="null"/> quando inexistente ou invisível.</returns>
     Task<Expense?> FindVisibleAsync(Guid id, CurrentUser user, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lista, com a categoria, os reembolsos no escopo de leitura do usuário. O filtro é aplicado na
+    /// consulta, antes de materializar os dados.
+    /// </summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>Reembolsos visíveis, do mais recente para o mais antigo.</returns>
+    Task<IReadOnlyList<Expense>> ListVisibleAsync(CurrentUser user, CancellationToken cancellationToken);
 
     /// <summary>
     /// Inclui um novo reembolso para ser persistido.

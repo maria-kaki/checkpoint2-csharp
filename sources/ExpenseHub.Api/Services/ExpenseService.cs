@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Domain;
@@ -134,6 +135,111 @@ public sealed class ExpenseService
         }
 
         return ServiceResult.Success(ExpenseResponse.FromEntity(expense));
+    }
+
+    /// <summary>
+    /// Envia um rascunho próprio para aprovação (Draft → Submitted). Reembolso invisível retorna 404,
+    /// de outro proprietário retorna 403 e fora de Draft (inclusive envio repetido) retorna 409.
+    /// </summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>O reembolso em Submitted ou a falha correspondente.</returns>
+    public async Task<ServiceResult<ExpenseResponse>> SubmitAsync(
+        CurrentUser user,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (!user.IsInRole(AppRoles.Employee))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Forbidden("Somente usuários com a role Employee enviam reembolsos."));
+        }
+
+        Expense? expense = await _repository.FindVisibleAsync(id, user, cancellationToken);
+        if (expense is null)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.NotFound("Reembolso não encontrado."));
+        }
+
+        if (expense.OwnerId != user.Id)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Forbidden("Somente o proprietário pode enviar o reembolso."));
+        }
+
+        if (!expense.Submit(user.Id, _timeProvider.GetUtcNow().UtcDateTime))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.Conflict(
+                $"Somente reembolsos em Draft podem ser enviados. Estado atual: {expense.Status}."));
+        }
+
+        if (!await _repository.SaveChangesAsync(cancellationToken))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Conflict("O reembolso foi alterado por outra operação. Consulte-o novamente."));
+        }
+
+        return ServiceResult.Success(ExpenseResponse.FromEntity(expense));
+    }
+
+    /// <summary>
+    /// Consulta um reembolso no escopo de leitura do usuário. Fora do escopo, a resposta é a mesma de um
+    /// reembolso inexistente, sem revelar que ele existe.
+    /// </summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>O reembolso ou a falha correspondente.</returns>
+    public async Task<ServiceResult<ExpenseResponse>> GetAsync(
+        CurrentUser user,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (!HasReadAccess(user))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Forbidden("O perfil do usuário não consulta reembolsos."));
+        }
+
+        Expense? expense = await _repository.FindVisibleAsync(id, user, cancellationToken);
+        return expense is null
+            ? ServiceResult.Failure<ExpenseResponse>(ServiceError.NotFound("Reembolso não encontrado."))
+            : ServiceResult.Success(ExpenseResponse.FromEntity(expense));
+    }
+
+    /// <summary>
+    /// Lista os reembolsos no escopo de leitura do usuário.
+    /// </summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>Os reembolsos visíveis ou falha quando o perfil não consulta reembolsos.</returns>
+    public async Task<ServiceResult<IReadOnlyList<ExpenseResponse>>> ListAsync(
+        CurrentUser user,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (!HasReadAccess(user))
+        {
+            return ServiceResult.Failure<IReadOnlyList<ExpenseResponse>>(
+                ServiceError.Forbidden("O perfil do usuário não consulta reembolsos."));
+        }
+
+        IReadOnlyList<Expense> expenses = await _repository.ListVisibleAsync(user, cancellationToken);
+        return ServiceResult.Success<IReadOnlyList<ExpenseResponse>>([.. expenses.Select(ExpenseResponse.FromEntity)]);
+    }
+
+    private static bool HasReadAccess(CurrentUser user)
+    {
+        return user.IsInRole(AppRoles.Employee)
+            || user.IsInRole(AppRoles.Approver)
+            || user.IsInRole(AppRoles.Finance)
+            || user.IsInRole(AppRoles.Auditor);
     }
 
     private async Task<(ExpenseCategory? Category, ServiceError? Error)> ValidateAsync(
