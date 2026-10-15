@@ -242,6 +242,21 @@ public class Expense
             normalizedJustification);
     }
 
+    /// <summary>Paga integralmente um reembolso aprovado e cria o registro de pagamento.</summary>
+    /// <param name="actorId">Usuário autenticado do financeiro.</param>
+    /// <param name="nowUtc">Instante atual do servidor em UTC.</param>
+    /// <returns><see langword="true"/> quando Approved foi alterado para Paid.</returns>
+    public bool Pay(string actorId, DateTime nowUtc)
+    {
+        if (!TryTransition(ExpenseStatus.Approved, ExpenseStatus.Paid, ExpenseAction.Paid, actorId, nowUtc))
+        {
+            return false;
+        }
+
+        Payment = PaymentRecord.Create(Id, actorId, nowUtc, Amount);
+        return true;
+    }
+
     /// <summary>
     /// Executa uma transição de estado e registra o histórico correspondente. Se o estado atual não for o
     /// esperado, nada é alterado: assim uma transição repetida não duplica o histórico.
