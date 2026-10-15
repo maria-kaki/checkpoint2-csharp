@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using ExpenseHub.Api.Data;
 using ExpenseHub.Api.Security;
+using ExpenseHub.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -29,6 +30,8 @@ internal static class Program
         builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlite(connectionString));
 
         AddIdentityAndAuthentication(builder);
+        builder.Services.AddScoped<AccountService>();
+        builder.Services.AddScoped<UserAdministrationService>();
 
         WebApplication app = builder.Build();
 

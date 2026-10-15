@@ -49,7 +49,9 @@ sources/ExpenseHub.Api/
 │   └── Migrations/            # migrations geradas pelo dotnet-ef
 ├── Domain/                    # Expense, ExpenseCategory, ExpenseHistory, PaymentRecord
 ├── Dtos/                      # contratos de entrada com validação declarativa
-└── Security/                  # roles e configuração do seed
+├── Responses/                 # contratos de saída
+├── Security/                  # roles, regras de alteração de roles e seed
+└── Services/                  # regras de negócio e resultado padrão (ServiceResult)
 ```
 
 ## Comandos
@@ -163,7 +165,50 @@ Envie o token nas demais rotas com o cabeçalho `Authorization: Bearer <accessTo
 | Usuário autenticado sem a role exigida | `403 Forbidden` |
 | Entrada inválida | `400 Bad Request` |
 
-Todas as rotas exigem autenticação por padrão (política de fallback); apenas `/health` e `/login` são públicas. Após 5 tentativas de login inválidas a conta fica bloqueada por 5 minutos. As respostas de erro seguem `ProblemDetails`.
+Todas as rotas exigem autenticação por padrão (política de fallback); apenas `/health`, `/login` e `/register` são públicas. Após 5 tentativas de login inválidas a conta fica bloqueada por 5 minutos. As respostas de erro seguem `ProblemDetails`.
+
+## Cadastro e administração de usuários
+
+### Cadastro
+
+`POST /register` é público e recebe somente e-mail e senha. O usuário é criado **sem nenhuma role**; enviar qualquer campo extra, como `roles`, retorna `400`.
+
+```json
+{ "email": "ana@empresa.com", "password": "Ana@12345" }
+```
+
+| Situação | Status |
+|---|---|
+| Cadastro válido | `201 Created` com `id`, `email` e `roles: []` |
+| E-mail já cadastrado, senha fora da política ou campo extra | `400 Bad Request` |
+
+Um usuário recém-cadastrado consegue fazer login, mas recebe `403` em qualquer operação até que o Admin atribua uma role.
+
+### Administração de roles (somente Admin)
+
+| Método e rota | Operação |
+|---|---|
+| `GET /api/admin/users` | Lista usuários com suas roles |
+| `PUT /api/admin/users/{id}/roles` | Substitui as roles do usuário pelo conjunto enviado |
+
+O `PUT` recebe o **conjunto completo** de roles desejado: roles ausentes da lista são removidas e uma lista vazia remove todas.
+
+```json
+{ "roles": ["Employee", "Approver"] }
+```
+
+| Situação | Status |
+|---|---|
+| Alteração válida | `200 OK` com as roles finais |
+| Lista ausente ou role desconhecida (roles nunca são criadas implicitamente) | `400 Bad Request` |
+| Sem token | `401 Unauthorized` |
+| Usuário sem a role Admin | `403 Forbidden` |
+| Admin removendo a própria role Admin | `403 Forbidden` |
+| Usuário inexistente | `404 Not Found` |
+
+Os nomes das roles não diferenciam maiúsculas e minúsculas (`employee` vira `Employee`).
+
+> **Novo login obrigatório após alterar roles.** As roles ficam gravadas no token no momento do login. Depois de uma alteração, o usuário afetado precisa chamar `POST /login` novamente para receber um token com as novas roles; o token anterior continua com as roles antigas até expirar (1 hora). A alteração também renova o security stamp do usuário.
 
 ## Testes
 
