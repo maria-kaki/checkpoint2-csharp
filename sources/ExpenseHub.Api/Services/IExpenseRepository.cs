@@ -39,6 +39,15 @@ public interface IExpenseRepository
     Task<Expense?> FindForTransitionAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Obtém um reembolso visível com sua categoria e seu histórico para consulta auditável.
+    /// </summary>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>O reembolso ou <see langword="null"/> quando inexistente ou invisível.</returns>
+    Task<Expense?> FindVisibleWithHistoryAsync(Guid id, CurrentUser user, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lista, com a categoria, os reembolsos no escopo de leitura do usuário. O filtro é aplicado na
     /// consulta, antes de materializar os dados.
     /// </summary>
