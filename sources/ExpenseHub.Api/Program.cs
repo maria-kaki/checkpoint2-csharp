@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +23,8 @@ internal static class Program
         WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
         builder.Services.AddOpenApi();
         builder.Services.AddProblemDetails();
-        builder.Services.AddControllers()
+        builder.Services.AddControllers(options =>
+                options.ModelMetadataDetailsProviders.Add(new SystemTextJsonValidationMetadataProvider()))
             .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
         string connectionString = builder.Configuration.GetConnectionString("ExpenseHub")
@@ -32,6 +34,9 @@ internal static class Program
         AddIdentityAndAuthentication(builder);
         builder.Services.AddScoped<AccountService>();
         builder.Services.AddScoped<UserAdministrationService>();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddScoped<IExpenseRepository, EfExpenseRepository>();
+        builder.Services.AddScoped<ExpenseService>();
 
         WebApplication app = builder.Build();
 
