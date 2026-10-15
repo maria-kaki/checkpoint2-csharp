@@ -282,10 +282,34 @@ Escopo de leitura por perfil (roles acumuladas recebem a união):
 
 O envio grava o histórico (`Submitted`, ator, instante UTC, `Draft` → `Submitted`) na mesma operação. A listagem é ordenada do mais recente para o mais antigo e o filtro de perfil é executado no banco.
 
+### Aprovar e reprovar
+
+| Método e rota | Quem pode | Regra |
+|---|---|---|
+| `POST /api/expenses/{id}/approve` | Approver não proprietário | `Submitted` → `Approved` |
+| `POST /api/expenses/{id}/reject` | Approver não proprietário | `Submitted` → `Rejected`, com justificativa |
+
+A reprovação recebe somente o campo `justification`, obrigatório entre 10 e 500 caracteres:
+
+```json
+{ "justification": "Documento fiscal ilegível." }
+```
+
+| Situação | Status |
+|---|---|
+| Aprovação ou reprovação válida | `200 OK` com o novo estado |
+| Justificativa ausente, curta, longa ou campo extra | `400 Bad Request` |
+| Sem token | `401 Unauthorized` |
+| Usuário sem a role Approver ou proprietário do reembolso | `403 Forbidden` |
+| Reembolso inexistente | `404 Not Found` |
+| Estado diferente de `Submitted` ou decisão repetida | `409 Conflict`, sem histórico duplicado |
+
+O ator e o instante UTC vêm da identidade e do relógio do servidor. A transição e o registro em `ExpenseHistory`, incluindo a justificativa da reprovação, são persistidos no mesmo `SaveChanges`.
+
 ### Onde as regras ficam
 
 - **Controller:** `[Authorize(Roles = ...)]` restringe a rota pela role.
-- **Serviço (`ExpenseService`):** combina role, visibilidade, proprietário e estado, nessa ordem, e devolve um `ServiceResult` que o controller converte em `ProblemDetails`.
+- **Serviço (`ExpenseService`):** combina role, existência ou visibilidade conforme a operação, proprietário e estado, e devolve um `ServiceResult` que o controller converte em `ProblemDetails`.
 - **Visibilidade (`ExpenseVisibility`):** filtro aplicado na consulta ao banco, antes de materializar os dados. Employee vê os próprios, Approver vê `Submitted`, Finance vê `Approved` e `Paid`, Auditor vê todos e Admin sozinho não vê nada. Roles acumuladas recebem a união.
 - **Acesso contextual (`ExpenseAccess`):** centraliza as permissões funcionais e impede que o proprietário aprove, reprove ou pague o próprio reembolso, mesmo quando acumula roles.
 - **Domínio (`Expense`, `ExpenseRules`):** garante o estado e as validações mesmo que o serviço seja contornado.
@@ -294,7 +318,7 @@ O envio grava o histórico (`Submitted`, ator, instante UTC, `Draft` → `Submit
 
 O acesso de leitura é sempre filtrado no `IQueryable` do repositório. Assim, um identificador trocado na URL não revela a existência de um recurso fora do escopo e retorna `404`. Usuários sem perfil funcional e Admin sem outra role recebem `403`; ausência ou invalidade do token é tratada pela autenticação com `401`.
 
-As regras contextuais são avaliadas na camada de serviço, além dos atributos de role do controller. Para as operações das próximas etapas, `ExpenseAccess` exige Approver não proprietário em `Submitted` para decidir e Finance não proprietário em `Approved` para pagar. Estado incompatível produz `409`.
+As regras contextuais são avaliadas na camada de serviço, além dos atributos de role do controller. `ExpenseAccess` exige Approver não proprietário em `Submitted` para decidir e Finance não proprietário em `Approved` para pagar. Estado incompatível produz `409`.
 
 ## Testes
 

@@ -345,3 +345,111 @@ GET {{ExpenseHub_Api_HostAddress}}/api/expenses
 Authorization: Bearer {{brunoLogin.response.body.$.accessToken}}
 
 ###
+
+# ---------------------------------------------------------------
+# I07 — Aprovar e reprovar com justificativa
+# ---------------------------------------------------------------
+
+# Carla: cadastro, role Approver e novo login
+# @name registerCarla
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "carla@empresa.com",
+  "password": "Carla@123"
+}
+
+###
+
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerCarla.response.body.$.id}}/roles
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Approver"]
+}
+
+###
+
+# @name carlaLogin
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "carla@empresa.com",
+  "password": "Carla@123"
+}
+
+###
+
+# A proprietária Ana também é Approver, mas não aprova a própria despesa: 403
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/approve
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+
+###
+
+# Carla aprova a despesa da Ana: 200, Submitted -> Approved
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/approve
+Authorization: Bearer {{carlaLogin.response.body.$.accessToken}}
+
+###
+
+# Aprovação repetida: 409, sem histórico duplicado
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/approve
+Authorization: Bearer {{carlaLogin.response.body.$.accessToken}}
+
+###
+
+# Segundo reembolso da Ana para demonstrar a reprovação
+# @name createExpenseToReject
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 5,
+  "description": "Material adquirido durante visita ao cliente",
+  "amount": 35.90,
+  "expenseDate": "2026-10-10"
+}
+
+###
+
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpenseToReject.response.body.$.id}}/submit
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+
+###
+
+# Justificativa curta: 400, sem alterar o estado
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpenseToReject.response.body.$.id}}/reject
+Authorization: Bearer {{carlaLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "justification": "curta"
+}
+
+###
+
+# Carla reprova com justificativa válida: 200, Submitted -> Rejected
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpenseToReject.response.body.$.id}}/reject
+Authorization: Bearer {{carlaLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "justification": "Documento fiscal ilegível."
+}
+
+###
+
+# Reprovação repetida: 409, sem histórico duplicado
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpenseToReject.response.body.$.id}}/reject
+Authorization: Bearer {{carlaLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "justification": "Documento fiscal continua ilegível."
+}
+
+###
