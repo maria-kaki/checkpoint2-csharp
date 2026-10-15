@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using ExpenseHub.Api.Domain;
 using ExpenseHub.Api.Dtos;
 
@@ -14,6 +15,18 @@ internal static class ExpenseFactory
     public static Expense Draft(string ownerId, ExpenseCategory category, FixedTimeProvider clock)
     {
         return Expense.Create(ownerId, category, ValidDescription, 87.50m, clock.Today, clock.UtcNow);
+    }
+
+    public static Expense AtStatus(
+        string ownerId,
+        ExpenseCategory category,
+        FixedTimeProvider clock,
+        ExpenseStatus status)
+    {
+        Expense expense = Draft(ownerId, category, clock);
+        PropertyInfo statusProperty = typeof(Expense).GetProperty(nameof(Expense.Status))!;
+        statusProperty.SetValue(expense, status);
+        return expense;
     }
 
     public static ExpenseDraftRequest Request(

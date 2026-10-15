@@ -287,7 +287,14 @@ O envio grava o histórico (`Submitted`, ator, instante UTC, `Draft` → `Submit
 - **Controller:** `[Authorize(Roles = ...)]` restringe a rota pela role.
 - **Serviço (`ExpenseService`):** combina role, visibilidade, proprietário e estado, nessa ordem, e devolve um `ServiceResult` que o controller converte em `ProblemDetails`.
 - **Visibilidade (`ExpenseVisibility`):** filtro aplicado na consulta ao banco, antes de materializar os dados. Employee vê os próprios, Approver vê `Submitted`, Finance vê `Approved` e `Paid`, Auditor vê todos e Admin sozinho não vê nada. Roles acumuladas recebem a união.
+- **Acesso contextual (`ExpenseAccess`):** centraliza as permissões funcionais e impede que o proprietário aprove, reprove ou pague o próprio reembolso, mesmo quando acumula roles.
 - **Domínio (`Expense`, `ExpenseRules`):** garante o estado e as validações mesmo que o serviço seja contornado.
+
+### Matriz de acesso
+
+O acesso de leitura é sempre filtrado no `IQueryable` do repositório. Assim, um identificador trocado na URL não revela a existência de um recurso fora do escopo e retorna `404`. Usuários sem perfil funcional e Admin sem outra role recebem `403`; ausência ou invalidade do token é tratada pela autenticação com `401`.
+
+As regras contextuais são avaliadas na camada de serviço, além dos atributos de role do controller. Para as operações das próximas etapas, `ExpenseAccess` exige Approver não proprietário em `Submitted` para decidir e Finance não proprietário em `Approved` para pagar. Estado incompatível produz `409`.
 
 ## Testes
 

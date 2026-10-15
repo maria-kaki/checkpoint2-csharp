@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using ExpenseHub.Api.Domain;
 using ExpenseHub.Api.Security;
@@ -65,11 +66,57 @@ public sealed class ExpenseVisibilityTests
         Assert.AreEqual(0, ExpenseVisibility.Apply(expenses, TestUsers.With("duda", AppRoles.Approver)).Count());
     }
 
+    /// <summary>Approver enxerga somente reembolsos Submitted.</summary>
+    [TestMethod]
+    public void Apply_Approver_VeSomenteSubmitted()
+    {
+        IQueryable<Expense> expenses = ExpensesInEveryStatus();
+
+        Expense[] visible = [.. ExpenseVisibility.Apply(expenses, TestUsers.With("apro", AppRoles.Approver))];
+
+        Assert.HasCount(1, visible);
+        Assert.AreEqual(ExpenseStatus.Submitted, visible[0].Status);
+    }
+
+    /// <summary>Finance enxerga somente reembolsos Approved e Paid.</summary>
+    [TestMethod]
+    public void Apply_Finance_VeSomenteApprovedEPaid()
+    {
+        IQueryable<Expense> expenses = ExpensesInEveryStatus();
+
+        ExpenseStatus[] statuses = [.. ExpenseVisibility
+            .Apply(expenses, TestUsers.With("fin", AppRoles.Finance))
+            .Select(expense => expense.Status)
+            .Order()];
+
+        CollectionAssert.AreEqual(new[] { ExpenseStatus.Approved, ExpenseStatus.Paid }, statuses);
+    }
+
+    /// <summary>Roles acumuladas recebem a união exata dos escopos.</summary>
+    [TestMethod]
+    public void Apply_EmployeeApproverFinance_CombinaEscopos()
+    {
+        IQueryable<Expense> expenses = ExpensesInEveryStatus();
+
+        Expense[] visible = [.. ExpenseVisibility.Apply(
+            expenses,
+            TestUsers.With("ana", AppRoles.Employee, AppRoles.Approver, AppRoles.Finance))];
+
+        Assert.HasCount(Enum.GetValues<ExpenseStatus>().Length, visible);
+    }
+
     private IQueryable<Expense> Expenses(params string[] owners)
     {
         return owners
             .Select(owner => ExpenseFactory.Draft(owner, _transport, _clock))
             .ToList()
+            .AsQueryable();
+    }
+
+    private IQueryable<Expense> ExpensesInEveryStatus()
+    {
+        return Enum.GetValues<ExpenseStatus>()
+            .Select(status => ExpenseFactory.AtStatus("ana", _transport, _clock, status))
             .AsQueryable();
     }
 }
