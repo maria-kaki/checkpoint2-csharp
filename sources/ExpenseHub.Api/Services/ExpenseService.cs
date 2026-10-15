@@ -200,7 +200,7 @@ public sealed class ExpenseService
     {
         ArgumentNullException.ThrowIfNull(user);
 
-        if (!HasReadAccess(user))
+        if (!ExpenseAccess.CanRead(user))
         {
             return ServiceResult.Failure<ExpenseResponse>(
                 ServiceError.Forbidden("O perfil do usuário não consulta reembolsos."));
@@ -224,7 +224,7 @@ public sealed class ExpenseService
     {
         ArgumentNullException.ThrowIfNull(user);
 
-        if (!HasReadAccess(user))
+        if (!ExpenseAccess.CanRead(user))
         {
             return ServiceResult.Failure<IReadOnlyList<ExpenseResponse>>(
                 ServiceError.Forbidden("O perfil do usuário não consulta reembolsos."));
@@ -232,14 +232,6 @@ public sealed class ExpenseService
 
         IReadOnlyList<Expense> expenses = await _repository.ListVisibleAsync(user, cancellationToken);
         return ServiceResult.Success<IReadOnlyList<ExpenseResponse>>([.. expenses.Select(ExpenseResponse.FromEntity)]);
-    }
-
-    private static bool HasReadAccess(CurrentUser user)
-    {
-        return user.IsInRole(AppRoles.Employee)
-            || user.IsInRole(AppRoles.Approver)
-            || user.IsInRole(AppRoles.Finance)
-            || user.IsInRole(AppRoles.Auditor);
     }
 
     private async Task<(ExpenseCategory? Category, ServiceError? Error)> ValidateAsync(
