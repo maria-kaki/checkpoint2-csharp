@@ -351,6 +351,18 @@ Cada teste cria suas próprias dependências isoladas e pode executar em paralel
 dotnet test ./sources/ExpenseHub.slnx
 ```
 
+## Qualidade da entrega
+
+Antes da entrega, execute o mesmo analisador usado pelo GitHub Actions em um terminal com PowerShell 7:
+
+```powershell
+./scripts/Invoke-CodeQuality.ps1
+```
+
+O comando restaura e compila cada projeto, verifica formatação e analisadores, executa os testes, procura segredos com Gitleaks e avalia a higiene do repositório. Os relatórios locais são gerados em `artifacts/code-quality/report.md` e `artifacts/code-quality/report.json`; esse diretório permanece ignorado pelo Git.
+
+No pull request final, confira o resumo do job **Build, security & code quality**, baixe o artefato `code-quality-report` e registre na descrição do PR o score associado ao SHA avaliado. Um workflow verde confirma apenas a ausência de findings bloqueantes; a pontuação deve ser lida no relatório.
+
 ## Entrega
 
 Entregue:
