@@ -106,6 +106,52 @@ public sealed class ExpensesController : ApiControllerBase
         return result.Succeeded ? Ok(result.Value) : ToProblem(result.Error!);
     }
 
+    /// <summary>Aprova um reembolso enviado de outro usuário.</summary>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>200 com o reembolso em Approved.</returns>
+    [HttpPost("{id:guid}/approve")]
+    [Authorize(Roles = AppRoles.Approver)]
+    [ProducesResponseType<ExpenseResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Approve(Guid id, CancellationToken cancellationToken)
+    {
+        ServiceResult<ExpenseResponse> result = await _service.ApproveAsync(
+            User.ToCurrentUser(),
+            id,
+            cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : ToProblem(result.Error!);
+    }
+
+    /// <summary>Reprova um reembolso enviado de outro usuário com justificativa.</summary>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="request">Justificativa da reprovação.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>200 com o reembolso em Rejected.</returns>
+    [HttpPost("{id:guid}/reject")]
+    [Authorize(Roles = AppRoles.Approver)]
+    [ProducesResponseType<ExpenseResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Reject(
+        Guid id,
+        [FromBody] RejectExpenseRequest request,
+        CancellationToken cancellationToken)
+    {
+        ServiceResult<ExpenseResponse> result = await _service.RejectAsync(
+            User.ToCurrentUser(),
+            id,
+            request,
+            cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : ToProblem(result.Error!);
+    }
+
     /// <summary>
     /// Edita um rascunho próprio.
     /// </summary>

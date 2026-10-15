@@ -30,6 +30,15 @@ public interface IExpenseRepository
     Task<Expense?> FindVisibleAsync(Guid id, CurrentUser user, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Obtém um reembolso para validar uma transição. O serviço deve validar a role antes da consulta e
+    /// aplicar ownership e estado antes de alterar o agregado.
+    /// </summary>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>O reembolso ou <see langword="null"/> quando inexistente.</returns>
+    Task<Expense?> FindForTransitionAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lista, com a categoria, os reembolsos no escopo de leitura do usuário. O filtro é aplicado na
     /// consulta, antes de materializar os dados.
     /// </summary>

@@ -42,6 +42,14 @@ public sealed class EfExpenseRepository : IExpenseRepository
     }
 
     /// <inheritdoc />
+    public Task<Expense?> FindForTransitionAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return _dbContext.Expenses
+            .Include(expense => expense.Category)
+            .FirstOrDefaultAsync(expense => expense.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<Expense>> ListVisibleAsync(CurrentUser user, CancellationToken cancellationToken)
     {
         return await ExpenseVisibility.Apply(_dbContext.Expenses.AsNoTracking(), user)

@@ -185,6 +185,109 @@ public sealed class ExpenseService
         return ServiceResult.Success(ExpenseResponse.FromEntity(expense));
     }
 
+    /// <summary>Aprova um reembolso Submitted de outro usuário.</summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>O reembolso em Approved ou a falha correspondente.</returns>
+    public async Task<ServiceResult<ExpenseResponse>> ApproveAsync(
+        CurrentUser user,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (!user.IsInRole(AppRoles.Approver))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Forbidden("Somente usuários com a role Approver aprovam reembolsos."));
+        }
+
+        Expense? expense = await _repository.FindForTransitionAsync(id, cancellationToken);
+        if (expense is null)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.NotFound("Reembolso não encontrado."));
+        }
+
+        ServiceError? accessError = ExpenseAccess.ValidateDecision(user, expense);
+        if (accessError is not null)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(accessError);
+        }
+
+        if (!expense.Approve(user.Id, _timeProvider.GetUtcNow().UtcDateTime))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.Conflict(
+                $"Somente reembolsos em Submitted podem ser aprovados. Estado atual: {expense.Status}."));
+        }
+
+        if (!await _repository.SaveChangesAsync(cancellationToken))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Conflict("O reembolso foi alterado por outra operação. Consulte-o novamente."));
+        }
+
+        return ServiceResult.Success(ExpenseResponse.FromEntity(expense));
+    }
+
+    /// <summary>Reprova um reembolso Submitted de outro usuário com justificativa.</summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="request">Justificativa da reprovação.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>O reembolso em Rejected ou a falha correspondente.</returns>
+    public async Task<ServiceResult<ExpenseResponse>> RejectAsync(
+        CurrentUser user,
+        Guid id,
+        RejectExpenseRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!user.IsInRole(AppRoles.Approver))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Forbidden("Somente usuários com a role Approver reprovam reembolsos."));
+        }
+
+        string? justification = request.Justification?.Trim();
+        if (justification is null
+            || justification.Length is < ExpenseHistory.JustificationMinLength
+                or > ExpenseHistory.JustificationMaxLength)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.Validation(
+                "justification",
+                $"A justificativa deve ter entre {ExpenseHistory.JustificationMinLength} e {ExpenseHistory.JustificationMaxLength} caracteres."));
+        }
+
+        Expense? expense = await _repository.FindForTransitionAsync(id, cancellationToken);
+        if (expense is null)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.NotFound("Reembolso não encontrado."));
+        }
+
+        ServiceError? accessError = ExpenseAccess.ValidateDecision(user, expense);
+        if (accessError is not null)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(accessError);
+        }
+
+        if (!expense.Reject(user.Id, justification, _timeProvider.GetUtcNow().UtcDateTime))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.Conflict(
+                $"Somente reembolsos em Submitted podem ser reprovados. Estado atual: {expense.Status}."));
+        }
+
+        if (!await _repository.SaveChangesAsync(cancellationToken))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Conflict("O reembolso foi alterado por outra operação. Consulte-o novamente."));
+        }
+
+        return ServiceResult.Success(ExpenseResponse.FromEntity(expense));
+    }
+
     /// <summary>
     /// Consulta um reembolso no escopo de leitura do usuário. Fora do escopo, a resposta é a mesma de um
     /// reembolso inexistente, sem revelar que ele existe.
