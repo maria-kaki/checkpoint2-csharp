@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 
 namespace ExpenseHub.Api.Security;
@@ -20,5 +21,19 @@ public static class ClaimsPrincipalExtensions
 
         return principal.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("Usuário autenticado sem identificador.");
+    }
+
+    /// <summary>
+    /// Converte o usuário autenticado na identidade usada pelos serviços.
+    /// </summary>
+    /// <param name="principal">Usuário da requisição.</param>
+    /// <returns>Identificador e roles do token.</returns>
+    public static CurrentUser ToCurrentUser(this ClaimsPrincipal principal)
+    {
+        ArgumentNullException.ThrowIfNull(principal);
+
+        return new CurrentUser(
+            principal.GetUserId(),
+            principal.FindAll(ClaimTypes.Role).Select(claim => claim.Value));
     }
 }

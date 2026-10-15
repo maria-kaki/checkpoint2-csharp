@@ -1,3 +1,4 @@
+using System;
 using ExpenseHub.Api.Domain;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -30,6 +31,14 @@ public class AppDbContext : IdentityDbContext<IdentityUser>
 
     /// <summary>Pagamentos registrados.</summary>
     public DbSet<PaymentRecord> PaymentRecords => Set<PaymentRecord>();
+
+    /// <inheritdoc />
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(configurationBuilder);
+
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
+    }
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder builder)
