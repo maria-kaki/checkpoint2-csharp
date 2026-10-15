@@ -306,6 +306,25 @@ A reprovação recebe somente o campo `justification`, obrigatório entre 10 e 5
 
 O ator e o instante UTC vêm da identidade e do relógio do servidor. A transição e o registro em `ExpenseHistory`, incluindo a justificativa da reprovação, são persistidos no mesmo `SaveChanges`.
 
+### Pagamento e histórico
+
+| Método e rota | Quem pode | Regra |
+|---|---|---|
+| `POST /api/expenses/{id}/pay` | Finance não proprietário | `Approved` → `Paid` |
+| `GET /api/expenses/{id}/history` | Employee, Approver, Finance, Auditor | Mesma visibilidade do reembolso |
+
+O pagamento é simulado e não recebe corpo. O servidor cria um único `PaymentRecord` com o valor integral do reembolso, o usuário Finance autenticado e o instante UTC. Pagamento, mudança de estado e histórico são persistidos juntos.
+
+| Situação | Status |
+|---|---|
+| Pagamento válido | `200 OK` com o reembolso em `Paid` |
+| Sem token | `401 Unauthorized` |
+| Usuário sem Finance ou Finance proprietário | `403 Forbidden` |
+| Reembolso ou histórico inexistente/fora do escopo | `404 Not Found` |
+| Pagamento de Draft, Submitted, Rejected ou Paid | `409 Conflict` |
+
+O histórico é retornado em ordem cronológica e contém ação, ator, instante UTC, estados anterior e posterior, justificativa de reprovação e alterações feitas no rascunho. Auditor consulta todos os históricos, mas nenhuma rota de escrita aceita apenas a role Auditor.
+
 ### Onde as regras ficam
 
 - **Controller:** `[Authorize(Roles = ...)]` restringe a rota pela role.
