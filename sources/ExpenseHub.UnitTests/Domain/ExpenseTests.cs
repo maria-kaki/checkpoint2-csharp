@@ -189,6 +189,26 @@ public sealed class ExpenseTests
         Assert.AreEqual(ExpenseStatus.Submitted, expense.Status);
     }
 
+    /// <summary>Os limites mínimo e máximo da justificativa são aceitos sem truncamento.</summary>
+    /// <param name="length">Quantidade válida de caracteres no limite.</param>
+    [TestMethod]
+    [DataRow(ExpenseHistory.JustificationMinLength)]
+    [DataRow(ExpenseHistory.JustificationMaxLength)]
+    public void Reject_ComTamanhoDeJustificativaNoLimite_ReprovaSemTruncar(int length)
+    {
+        Expense expense = ExpenseFactory.Draft("ana", _transport, _clock);
+        expense.Submit("ana", _clock.UtcNow);
+        string justification = new('x', length);
+
+        bool rejected = expense.Reject("bruno", justification, _clock.UtcNow.AddMinutes(1));
+
+        Assert.IsTrue(rejected);
+        Assert.AreEqual(ExpenseStatus.Rejected, expense.Status);
+        Assert.AreEqual(
+            justification,
+            expense.History.Single(item => item.Action == ExpenseAction.Rejected).Justification);
+    }
+
     /// <summary>Uma segunda decisão retorna falso sem duplicar o histórico.</summary>
     [TestMethod]
     public void Approve_Repetido_RetornaFalseSemDuplicarHistorico()
