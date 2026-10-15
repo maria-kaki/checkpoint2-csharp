@@ -83,6 +83,58 @@ public sealed class ExpenseTests
         Assert.DoesNotContain("descrição", history.Changes!);
     }
 
+    /// <summary>O envio muda Draft para Submitted e registra ator, horário e estados.</summary>
+    [TestMethod]
+    public void Submit_EmDraft_MudaParaSubmittedERegistraHistorico()
+    {
+        Expense expense = ExpenseFactory.Draft("ana", _transport, _clock);
+        Guid stamp = expense.ConcurrencyStamp;
+        DateTime later = _clock.UtcNow.AddMinutes(10);
+
+        bool submitted = expense.Submit("ana", later);
+
+        Assert.IsTrue(submitted);
+        Assert.AreEqual(ExpenseStatus.Submitted, expense.Status);
+        Assert.AreEqual(later, expense.UpdatedAtUtc);
+        Assert.AreNotEqual(stamp, expense.ConcurrencyStamp);
+
+        ExpenseHistory history = expense.History.Single(item => item.Action == ExpenseAction.Submitted);
+        Assert.AreEqual("ana", history.ActorId);
+        Assert.AreEqual(later, history.OccurredAtUtc);
+        Assert.AreEqual(ExpenseStatus.Draft, history.PreviousStatus);
+        Assert.AreEqual(ExpenseStatus.Submitted, history.NewStatus);
+    }
+
+    /// <summary>Repetir o envio não altera o estado nem duplica o histórico.</summary>
+    [TestMethod]
+    public void Submit_Repetido_RetornaFalseSemDuplicarHistorico()
+    {
+        Expense expense = ExpenseFactory.Draft("ana", _transport, _clock);
+        expense.Submit("ana", _clock.UtcNow);
+
+        bool submittedAgain = expense.Submit("ana", _clock.UtcNow.AddMinutes(1));
+
+        Assert.IsFalse(submittedAgain);
+        Assert.AreEqual(ExpenseStatus.Submitted, expense.Status);
+        Assert.AreEqual(1, expense.History.Count(item => item.Action == ExpenseAction.Submitted));
+    }
+
+    /// <summary>Depois de enviado, o reembolso não pode mais ser editado.</summary>
+    [TestMethod]
+    public void Update_AposEnvio_RetornaFalseSemAlterar()
+    {
+        Expense expense = ExpenseFactory.Draft("ana", _transport, _clock);
+        expense.Submit("ana", _clock.UtcNow);
+        int historyCount = expense.History.Count;
+
+        bool updated = expense.Update("ana", _lodging, ExpenseFactory.ValidDescription, 999m, _clock.Today, _clock.UtcNow);
+
+        Assert.IsFalse(updated);
+        Assert.AreEqual(87.50m, expense.Amount);
+        Assert.AreEqual(_transport.Id, expense.CategoryId);
+        Assert.HasCount(historyCount, expense.History);
+    }
+
     /// <summary>Uma edição sem mudanças não gera histórico nem altera o token de concorrência.</summary>
     [TestMethod]
     public void Update_SemMudancas_NaoGeraHistorico()
