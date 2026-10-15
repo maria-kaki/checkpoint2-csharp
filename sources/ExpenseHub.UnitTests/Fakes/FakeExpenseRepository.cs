@@ -27,6 +27,8 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
 
     public int SaveCount { get; private set; }
 
+    public int TransitionLookupCount { get; private set; }
+
     public bool SimulateConcurrencyConflict { get; set; }
 
     public ExpenseCategory Category(int id)
@@ -53,6 +55,7 @@ internal sealed class FakeExpenseRepository : IExpenseRepository
 
     public Task<Expense?> FindForTransitionAsync(Guid id, CancellationToken cancellationToken)
     {
+        TransitionLookupCount++;
         return Task.FromResult(_expenses.FirstOrDefault(expense => expense.Id == id));
     }
 

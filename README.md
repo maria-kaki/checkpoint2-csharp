@@ -343,6 +343,10 @@ As regras contextuais são avaliadas na camada de serviço, além dos atributos 
 
 Os testes unitários ficam em `sources/ExpenseHub.UnitTests` (MSTest) e executam sem banco, rede ou serviço externo: os serviços dependem de `IExpenseRepository` e `TimeProvider`, substituídos nos testes por um repositório em memória e um relógio fixo.
 
+A suíte cobre regras do domínio e dos serviços, incluindo limites válidos e inválidos, transições de estado, ownership, autoaprovação e autopagamento, justificativa de reprovação, pagamento e integridade do histórico. Os nomes descrevem o cenário e o resultado esperado; as asserções verificam estado, efeitos persistidos e ausência de efeitos colaterais nos caminhos de erro.
+
+Cada teste cria suas próprias dependências isoladas e pode executar em paralelo. Alterações nas regras centrais — por exemplo, permitir uma transição inválida, ignorar ownership ou consultar dados antes de validar a role — fazem os testes correspondentes falharem.
+
 ```shell
 dotnet test ./sources/ExpenseHub.slnx
 ```

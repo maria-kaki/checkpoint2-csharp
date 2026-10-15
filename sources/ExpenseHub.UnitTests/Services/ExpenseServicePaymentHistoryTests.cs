@@ -185,6 +185,66 @@ public sealed class ExpenseServicePaymentHistoryTests
             history.Select(item => item.OccurredAtUtc).Order()));
     }
 
+    /// <summary>O contrato do histórico preserva ator, horários, estados, alterações e justificativa.</summary>
+    /// <returns>Tarefa assíncrona.</returns>
+    [TestMethod]
+    public async Task GetHistoryAsync_ComEdicaoERejeicao_RetornaTodosOsDadosAuditaveis()
+    {
+        Expense expense = _repository.Seed(ExpenseFactory.Draft("ana", _repository.Category(2), _clock));
+        DateTime updatedAt = _clock.UtcNow.AddMinutes(1);
+        DateTime submittedAt = _clock.UtcNow.AddMinutes(2);
+        DateTime rejectedAt = _clock.UtcNow.AddMinutes(3);
+        expense.Update(
+            "ana",
+            _repository.Category(3),
+            ExpenseFactory.ValidDescription,
+            120m,
+            _clock.Today,
+            updatedAt);
+        expense.Submit("ana", submittedAt);
+        expense.Reject("bruno", "Documento fiscal ilegível.", rejectedAt);
+
+        ServiceResult<IReadOnlyList<ExpenseHistoryResponse>> result = await _service.GetHistoryAsync(
+            TestUsers.With("aud", AppRoles.Auditor),
+            expense.Id,
+            CancellationToken.None);
+
+        Assert.IsTrue(result.Succeeded);
+        IReadOnlyList<ExpenseHistoryResponse> history = result.Value!;
+        Assert.HasCount(4, history);
+
+        ExpenseHistoryResponse created = history[0];
+        Assert.AreEqual(ExpenseAction.Created, created.Action);
+        Assert.AreEqual("ana", created.ActorId);
+        Assert.AreEqual(_clock.UtcNow, created.OccurredAtUtc);
+        Assert.IsNull(created.PreviousStatus);
+        Assert.AreEqual(ExpenseStatus.Draft, created.NewStatus);
+
+        ExpenseHistoryResponse updated = history[1];
+        Assert.AreEqual(ExpenseAction.Updated, updated.Action);
+        Assert.AreEqual("ana", updated.ActorId);
+        Assert.AreEqual(updatedAt, updated.OccurredAtUtc);
+        Assert.AreEqual(ExpenseStatus.Draft, updated.PreviousStatus);
+        Assert.AreEqual(ExpenseStatus.Draft, updated.NewStatus);
+        Assert.Contains("categoria: \"Transporte\" → \"Hospedagem\"", updated.Changes!);
+        Assert.Contains("valor: \"87.50\" → \"120.00\"", updated.Changes!);
+
+        ExpenseHistoryResponse submitted = history[2];
+        Assert.AreEqual(ExpenseAction.Submitted, submitted.Action);
+        Assert.AreEqual("ana", submitted.ActorId);
+        Assert.AreEqual(submittedAt, submitted.OccurredAtUtc);
+        Assert.AreEqual(ExpenseStatus.Draft, submitted.PreviousStatus);
+        Assert.AreEqual(ExpenseStatus.Submitted, submitted.NewStatus);
+
+        ExpenseHistoryResponse rejected = history[3];
+        Assert.AreEqual(ExpenseAction.Rejected, rejected.Action);
+        Assert.AreEqual("bruno", rejected.ActorId);
+        Assert.AreEqual(rejectedAt, rejected.OccurredAtUtc);
+        Assert.AreEqual(ExpenseStatus.Submitted, rejected.PreviousStatus);
+        Assert.AreEqual(ExpenseStatus.Rejected, rejected.NewStatus);
+        Assert.AreEqual("Documento fiscal ilegível.", rejected.Justification);
+    }
+
     /// <summary>Auditor consulta todo o histórico sem depender do estado.</summary>
     /// <returns>Tarefa assíncrona.</returns>
     [TestMethod]
@@ -199,6 +259,19 @@ public sealed class ExpenseServicePaymentHistoryTests
 
         Assert.IsTrue(result.Succeeded);
         Assert.HasCount(3, result.Value!);
+    }
+
+    /// <summary>Auditor recebe 404 ao consultar o histórico de um reembolso inexistente.</summary>
+    /// <returns>Tarefa assíncrona.</returns>
+    [TestMethod]
+    public async Task GetHistoryAsync_AuditorEReembolsoInexistente_RetornaNotFound()
+    {
+        ServiceResult<IReadOnlyList<ExpenseHistoryResponse>> result = await _service.GetHistoryAsync(
+            TestUsers.With("aud", AppRoles.Auditor),
+            Guid.NewGuid(),
+            CancellationToken.None);
+
+        Assert.AreEqual(ServiceErrorType.NotFound, result.Error?.Type);
     }
 
     /// <summary>Approver consulta histórico de Submitted e Finance de Approved/Paid.</summary>
