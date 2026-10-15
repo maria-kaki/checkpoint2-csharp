@@ -288,6 +288,51 @@ public sealed class ExpenseService
         return ServiceResult.Success(ExpenseResponse.FromEntity(expense));
     }
 
+    /// <summary>Registra o pagamento integral de um reembolso Approved de outro usuário.</summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>O reembolso em Paid ou a falha correspondente.</returns>
+    public async Task<ServiceResult<ExpenseResponse>> PayAsync(
+        CurrentUser user,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (!user.IsInRole(AppRoles.Finance))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Forbidden("Somente usuários com a role Finance registram pagamentos."));
+        }
+
+        Expense? expense = await _repository.FindForTransitionAsync(id, cancellationToken);
+        if (expense is null)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.NotFound("Reembolso não encontrado."));
+        }
+
+        ServiceError? accessError = ExpenseAccess.ValidatePayment(user, expense);
+        if (accessError is not null)
+        {
+            return ServiceResult.Failure<ExpenseResponse>(accessError);
+        }
+
+        if (!expense.Pay(user.Id, _timeProvider.GetUtcNow().UtcDateTime))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(ServiceError.Conflict(
+                $"Somente reembolsos em Approved podem ser pagos. Estado atual: {expense.Status}."));
+        }
+
+        if (!await _repository.SaveChangesAsync(cancellationToken))
+        {
+            return ServiceResult.Failure<ExpenseResponse>(
+                ServiceError.Conflict("O reembolso foi alterado por outra operação. Consulte-o novamente."));
+        }
+
+        return ServiceResult.Success(ExpenseResponse.FromEntity(expense));
+    }
+
     /// <summary>
     /// Consulta um reembolso no escopo de leitura do usuário. Fora do escopo, a resposta é a mesma de um
     /// reembolso inexistente, sem revelar que ele existe.
@@ -313,6 +358,39 @@ public sealed class ExpenseService
         return expense is null
             ? ServiceResult.Failure<ExpenseResponse>(ServiceError.NotFound("Reembolso não encontrado."))
             : ServiceResult.Success(ExpenseResponse.FromEntity(expense));
+    }
+
+    /// <summary>Consulta o histórico de um reembolso dentro do escopo de leitura do usuário.</summary>
+    /// <param name="user">Usuário autenticado.</param>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>Histórico cronológico ou a falha correspondente.</returns>
+    public async Task<ServiceResult<IReadOnlyList<ExpenseHistoryResponse>>> GetHistoryAsync(
+        CurrentUser user,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(user);
+
+        if (!ExpenseAccess.CanRead(user))
+        {
+            return ServiceResult.Failure<IReadOnlyList<ExpenseHistoryResponse>>(
+                ServiceError.Forbidden("O perfil do usuário não consulta históricos."));
+        }
+
+        Expense? expense = await _repository.FindVisibleWithHistoryAsync(id, user, cancellationToken);
+        if (expense is null)
+        {
+            return ServiceResult.Failure<IReadOnlyList<ExpenseHistoryResponse>>(
+                ServiceError.NotFound("Reembolso não encontrado."));
+        }
+
+        IReadOnlyList<ExpenseHistoryResponse> history = [.. expense.History
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.Id)
+            .Select(ExpenseHistoryResponse.FromEntity)];
+
+        return ServiceResult.Success(history);
     }
 
     /// <summary>

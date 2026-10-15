@@ -50,6 +50,18 @@ public sealed class EfExpenseRepository : IExpenseRepository
     }
 
     /// <inheritdoc />
+    public Task<Expense?> FindVisibleWithHistoryAsync(
+        Guid id,
+        CurrentUser user,
+        CancellationToken cancellationToken)
+    {
+        return ExpenseVisibility.Apply(_dbContext.Expenses.AsNoTracking(), user)
+            .Include(expense => expense.Category)
+            .Include(expense => expense.History)
+            .FirstOrDefaultAsync(expense => expense.Id == id, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<Expense>> ListVisibleAsync(CurrentUser user, CancellationToken cancellationToken)
     {
         return await ExpenseVisibility.Apply(_dbContext.Expenses.AsNoTracking(), user)

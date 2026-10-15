@@ -432,6 +432,79 @@ Content-Type: application/json
 
 ###
 
+# ---------------------------------------------------------------
+# I08 — Pagamento e histórico
+# ---------------------------------------------------------------
+
+# Davi: cadastro, role Finance e novo login
+# @name registerDavi
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "davi@empresa.com",
+  "password": "Davi@1234"
+}
+
+###
+
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerDavi.response.body.$.id}}/roles
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Finance"]
+}
+
+###
+
+# @name daviLogin
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "davi@empresa.com",
+  "password": "Davi@1234"
+}
+
+###
+
+# Davi registra o pagamento do reembolso aprovado: 200, Approved -> Paid
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/pay
+Authorization: Bearer {{daviLogin.response.body.$.accessToken}}
+
+###
+
+# Pagamento repetido: 409, sem novo PaymentRecord ou histórico
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/pay
+Authorization: Bearer {{daviLogin.response.body.$.accessToken}}
+
+###
+
+# Proprietária consulta o histórico completo: 200
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/history
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+
+###
+
+# Finance consulta o histórico do reembolso Paid: 200
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/history
+Authorization: Bearer {{daviLogin.response.body.$.accessToken}}
+
+###
+
+# Approver não enxerga mais o reembolso depois de Paid: 404
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/history
+Authorization: Bearer {{carlaLogin.response.body.$.accessToken}}
+
+###
+
+# Admin sem outra role não consulta históricos: 403
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/history
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
 # Carla reprova com justificativa válida: 200, Submitted -> Rejected
 POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpenseToReject.response.body.$.id}}/reject
 Authorization: Bearer {{carlaLogin.response.body.$.accessToken}}

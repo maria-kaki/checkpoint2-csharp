@@ -152,6 +152,45 @@ public sealed class ExpensesController : ApiControllerBase
         return result.Succeeded ? Ok(result.Value) : ToProblem(result.Error!);
     }
 
+    /// <summary>Registra o pagamento de um reembolso aprovado de outro usuário.</summary>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>200 com o reembolso em Paid.</returns>
+    [HttpPost("{id:guid}/pay")]
+    [Authorize(Roles = AppRoles.Finance)]
+    [ProducesResponseType<ExpenseResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Pay(Guid id, CancellationToken cancellationToken)
+    {
+        ServiceResult<ExpenseResponse> result = await _service.PayAsync(
+            User.ToCurrentUser(),
+            id,
+            cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : ToProblem(result.Error!);
+    }
+
+    /// <summary>Consulta o histórico de um reembolso visível para o usuário.</summary>
+    /// <param name="id">Identificador do reembolso.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>200 com o histórico em ordem cronológica.</returns>
+    [HttpGet("{id:guid}/history")]
+    [Authorize(Roles = AppRoles.ExpenseReaders)]
+    [ProducesResponseType<IReadOnlyList<ExpenseHistoryResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHistory(Guid id, CancellationToken cancellationToken)
+    {
+        ServiceResult<IReadOnlyList<ExpenseHistoryResponse>> result = await _service.GetHistoryAsync(
+            User.ToCurrentUser(),
+            id,
+            cancellationToken);
+        return result.Succeeded ? Ok(result.Value) : ToProblem(result.Error!);
+    }
+
     /// <summary>
     /// Edita um rascunho próprio.
     /// </summary>

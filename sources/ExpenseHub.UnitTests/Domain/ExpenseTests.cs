@@ -204,6 +204,49 @@ public sealed class ExpenseTests
         Assert.AreEqual(1, expense.History.Count(item => item.Action == ExpenseAction.Approved));
     }
 
+    /// <summary>O pagamento muda Approved para Paid e cria pagamento e histórico com dados do servidor.</summary>
+    [TestMethod]
+    public void Pay_EmApproved_CriaPagamentoEHistorico()
+    {
+        Expense expense = ExpenseFactory.Draft("ana", _transport, _clock);
+        expense.Submit("ana", _clock.UtcNow);
+        expense.Approve("bruno", _clock.UtcNow.AddHours(1));
+        DateTime paidAt = _clock.UtcNow.AddHours(2);
+
+        bool paid = expense.Pay("carla", paidAt);
+
+        Assert.IsTrue(paid);
+        Assert.AreEqual(ExpenseStatus.Paid, expense.Status);
+        Assert.IsNotNull(expense.Payment);
+        Assert.AreEqual(expense.Id, expense.Payment.ExpenseId);
+        Assert.AreEqual("carla", expense.Payment.PaidById);
+        Assert.AreEqual(paidAt, expense.Payment.PaidAtUtc);
+        Assert.AreEqual(expense.Amount, expense.Payment.Amount);
+
+        ExpenseHistory history = expense.History.Single(item => item.Action == ExpenseAction.Paid);
+        Assert.AreEqual("carla", history.ActorId);
+        Assert.AreEqual(paidAt, history.OccurredAtUtc);
+        Assert.AreEqual(ExpenseStatus.Approved, history.PreviousStatus);
+        Assert.AreEqual(ExpenseStatus.Paid, history.NewStatus);
+    }
+
+    /// <summary>Pagamento repetido não substitui o registro nem duplica o histórico.</summary>
+    [TestMethod]
+    public void Pay_Repetido_RetornaFalseSemDuplicarRegistros()
+    {
+        Expense expense = ExpenseFactory.Draft("ana", _transport, _clock);
+        expense.Submit("ana", _clock.UtcNow);
+        expense.Approve("bruno", _clock.UtcNow);
+        expense.Pay("carla", _clock.UtcNow);
+        PaymentRecord payment = expense.Payment!;
+
+        bool paidAgain = expense.Pay("davi", _clock.UtcNow.AddMinutes(1));
+
+        Assert.IsFalse(paidAgain);
+        Assert.AreSame(payment, expense.Payment);
+        Assert.AreEqual(1, expense.History.Count(item => item.Action == ExpenseAction.Paid));
+    }
+
     /// <summary>Depois de enviado, o reembolso não pode mais ser editado.</summary>
     [TestMethod]
     public void Update_AposEnvio_RetornaFalseSemAlterar()
