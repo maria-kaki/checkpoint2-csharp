@@ -207,6 +207,41 @@ public class Expense
         return TryTransition(ExpenseStatus.Draft, ExpenseStatus.Submitted, ExpenseAction.Submitted, actorId, nowUtc);
     }
 
+    /// <summary>Aprova um reembolso enviado.</summary>
+    /// <param name="actorId">Aprovador autenticado.</param>
+    /// <param name="nowUtc">Instante atual do servidor em UTC.</param>
+    /// <returns><see langword="true"/> quando Submitted foi alterado para Approved.</returns>
+    public bool Approve(string actorId, DateTime nowUtc)
+    {
+        return TryTransition(ExpenseStatus.Submitted, ExpenseStatus.Approved, ExpenseAction.Approved, actorId, nowUtc);
+    }
+
+    /// <summary>Reprova um reembolso enviado com justificativa.</summary>
+    /// <param name="actorId">Aprovador autenticado.</param>
+    /// <param name="justification">Justificativa da reprovação.</param>
+    /// <param name="nowUtc">Instante atual do servidor em UTC.</param>
+    /// <returns><see langword="true"/> quando Submitted foi alterado para Rejected.</returns>
+    public bool Reject(string actorId, string justification, DateTime nowUtc)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(justification);
+        string normalizedJustification = justification.Trim();
+        if (normalizedJustification.Length is < ExpenseHistory.JustificationMinLength
+            or > ExpenseHistory.JustificationMaxLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(justification),
+                $"A justificativa deve ter entre {ExpenseHistory.JustificationMinLength} e {ExpenseHistory.JustificationMaxLength} caracteres.");
+        }
+
+        return TryTransition(
+            ExpenseStatus.Submitted,
+            ExpenseStatus.Rejected,
+            ExpenseAction.Rejected,
+            actorId,
+            nowUtc,
+            normalizedJustification);
+    }
+
     /// <summary>
     /// Executa uma transição de estado e registra o histórico correspondente. Se o estado atual não for o
     /// esperado, nada é alterado: assim uma transição repetida não duplica o histórico.
