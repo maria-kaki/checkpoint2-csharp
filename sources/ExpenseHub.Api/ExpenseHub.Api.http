@@ -239,7 +239,7 @@ Content-Type: application/json
 
 ###
 
-# Reembolso inexistente: 404
+# Reembolso inexistente (edição): 404
 PUT {{ExpenseHub_Api_HostAddress}}/api/expenses/00000000-0000-0000-0000-000000000000
 Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
 Content-Type: application/json
@@ -250,5 +250,98 @@ Content-Type: application/json
   "amount": 450.00,
   "expenseDate": "2026-10-10"
 }
+
+###
+
+# ---------------------------------------------------------------
+# I05 — Enviar, listar e consultar
+# ---------------------------------------------------------------
+
+# Ana envia o próprio rascunho: 200, Draft -> Submitted
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/submit
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+
+###
+
+# Envio repetido: 409 (sem duplicar histórico)
+POST {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}/submit
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+
+###
+
+# Edição depois do envio: 409
+PUT {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "categoryId": 3,
+  "description": "Tentando editar depois de enviar",
+  "amount": 1.00,
+  "expenseDate": "2026-10-10"
+}
+
+###
+
+# Listagem da Ana (Employee + Approver): os próprios e os Submitted
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+
+###
+
+# Detalhe visível: 200
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}
+Authorization: Bearer {{anaLogin2.response.body.$.accessToken}}
+
+###
+
+# Admin sem outra role não consulta reembolsos: 403
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+
+###
+
+# Bruno: cadastro, role Employee atribuída pelo Admin e login
+# @name registerBruno
+POST {{ExpenseHub_Api_HostAddress}}/register
+Content-Type: application/json
+
+{
+  "email": "bruno@empresa.com",
+  "password": "Bruno@123"
+}
+
+###
+
+PUT {{ExpenseHub_Api_HostAddress}}/api/admin/users/{{registerBruno.response.body.$.id}}/roles
+Authorization: Bearer {{adminLogin.response.body.$.accessToken}}
+Content-Type: application/json
+
+{
+  "roles": ["Employee"]
+}
+
+###
+
+# @name brunoLogin
+POST {{ExpenseHub_Api_HostAddress}}/login
+Content-Type: application/json
+
+{
+  "email": "bruno@empresa.com",
+  "password": "Bruno@123"
+}
+
+###
+
+# Bruno troca o id na URL para o reembolso da Ana: 404 (não vaza dados)
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses/{{createExpense.response.body.$.id}}
+Authorization: Bearer {{brunoLogin.response.body.$.accessToken}}
+
+###
+
+# Listagem do Bruno: somente os próprios (vazia)
+GET {{ExpenseHub_Api_HostAddress}}/api/expenses
+Authorization: Bearer {{brunoLogin.response.body.$.accessToken}}
 
 ###
